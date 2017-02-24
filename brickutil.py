@@ -86,9 +86,53 @@ def ListWishlists():
     with urllib.request.urlopen(url) as f:
         list = json.load(TextIOWrapper(f))
     for wl in list:
-        print("%s:\n\tID: %s\n\tsize: %s items\n" % (wl["name"],
-                                                   wl["wishlist_id"],
-                                                   wl["item_count"]))
+        print("%s:\n\tID: %s\n\tsize: %s items in %s lots\n" %
+              (wl["name"], wl["wishlist_id"], wl["item_count"], wl["lot_count"]))
+
+
+def DumpWishlist(wlId):
+    listUrl = "%s/wishlist/lots?key=%s&wishlist_id=%s" % (globalParams["brickowl"]["apiUrl"],
+                                                          config["brickowl"]["key"],
+                                                          wlId)
+
+    with urllib.request.urlopen(listUrl) as f:
+        lots = json.load(TextIOWrapper(f))
+    #XXX
+    print(lots)
+
+
+def ExportBricklink(wlId, outPath):
+    listUrl = "%s/wishlist/lots?key=%s&wishlist_id=%s" % (globalParams["brickowl"]["apiUrl"],
+                                                          config["brickowl"]["key"],
+                                                          wlId)
+
+    with urllib.request.urlopen(listUrl) as f:
+        lots = json.load(TextIOWrapper(f))
+
+    with open(outPath, "w") as f:
+        f.write("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\n")
+        f.write("<INVENTORY>\n")
+        for lot in lots:
+            designId = None
+            for _id in lot["ids"]:
+                if _id["type"] == "design_id":
+                    designId = _id["id"]
+            if designId is None:
+                print("Design id not found for lot %s" % lot["lot_id"])
+                continue
+            f.write("<ITEM>\n")
+            #XXX set all fields
+            f.write("""
+<ITEMTYPE>P</ITEMTYPE>
+<ITEMID>%s</ITEMID>
+<MAXPRICE>-1.0000</MAXPRICE>
+<MINQTY>%s</MINQTY>
+<CONDITION>N</CONDITION>
+<NOTIFY>N</NOTIFY>
+""" % (designId, lot["qty"]))
+
+            f.write("</ITEM>\n")
+        f.write("</INVENTORY>\n")
 
 
 def Main():
@@ -100,6 +144,7 @@ def Main():
 
     parser.add_argument("--wishlist-id", help = "Related wishlist ID")
     parser.add_argument("--dst-wishlist-id", help = "Destination wishlist ID")
+    parser.add_argument("-o", type = str, help = "Output file path")
 
     progArgs = parser.parse_args()
 
@@ -112,6 +157,14 @@ def Main():
 
     elif progArgs.command[0] == "list-wishlists":
         ListWishlists()
+
+    elif progArgs.command[0] == "dump-wishlist":
+        DumpWishlist(progArgs.wishlist_id)
+
+    elif progArgs.command[0] == "export-bricklink":
+        if progArgs.o is None:
+            raise Exception("Output file path should be specified")
+        ExportBricklink(progArgs.wishlist_id, progArgs.o)
 
 
 if __name__ == "__main__":
